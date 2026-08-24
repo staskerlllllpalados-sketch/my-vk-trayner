@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Линукс-Тренажёр — терминал Astra Linux</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --border:#30363d;
+    --term-bg:#0a0e14; --term-text:#c9d1d9;
+    --green:#3fb950; --blue:#58a6ff; --yellow:#d29922; --red:#f85149;
+    --purple:#bc8cff; --dim:#8b949e;
+    --font-mono:'Consolas','Liberation Mono','Courier New',monospace;
+    --font-ui:'Segoe UI',Tahoma,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--term-text);font-family:var(--font-ui);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+  header{display:flex;align-items:center;gap:14px;padding:10px 18px;background:var(--panel);border-bottom:1px solid var(--border);flex-shrink:0}
+  header .logo{font-size:22px}
+  header h1{font-size:16px;font-weight:600;color:#e6edf3}
+  header .sub{font-size:12px;color:var(--dim)}
+  header .spacer{flex:1}
+  .progress-wrap{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim)}
+  .progress-bar{width:180px;height:8px;background:#21262d;border-radius:4px;overflow:hidden}
+  .progress-fill{height:100%;background:var(--green);width:0%;transition:width .4s}
+  button{font-family:var(--font-ui);cursor:pointer;border:1px solid var(--border);background:#21262d;color:var(--term-text);border-radius:6px;padding:6px 12px;font-size:13px}
+  button:hover{background:#30363d}
+  button.primary{background:#1f6feb;border-color:#1f6feb;color:#fff}
+  button.primary:hover{background:#388bfd}
+
+  main{flex:1;display:flex;min-height:0}
+
+  /* ===== Терминал ===== */
+  #term-col{flex:1.4;display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--border)}
+  #term-titlebar{display:flex;align-items:center;gap:8px;background:#1c2128;padding:6px 12px;font-size:12px;color:var(--dim);border-bottom:1px solid var(--border);flex-shrink:0}
+  .tl-dot{width:11px;height:11px;border-radius:50%}
+  #terminal{flex:1;background:var(--term-bg);padding:12px 14px;overflow-y:auto;font-family:var(--font-mono);font-size:15px;line-height:1.45;cursor:text}
+  #terminal .line{white-space:pre-wrap;word-break:break-all}
+  .c-prompt{color:var(--green);font-weight:bold}
+  .c-path{color:var(--blue);font-weight:bold}
+  .c-dir{color:var(--blue);font-weight:bold}
+  .c-exec{color:var(--green)}
+  .c-err{color:var(--red)}
+  .c-ok{color:var(--green)}
+  .c-dim{color:var(--dim)}
+  .c-warn{color:var(--yellow)}
+  #input-line{display:flex;align-items:baseline}
+  #cmd-input{flex:1;background:transparent;border:none;outline:none;color:var(--term-text);font-family:var(--font-mono);font-size:15px;caret-color:var(--green);padding:0;margin-left:6px}
+
+  /* ===== Панель задания ===== */
+  #task-col{flex:1;display:flex;flex-direction:column;min-width:340px;max-width:520px;background:var(--panel)}
+  #task-card{padding:18px 20px;overflow-y:auto;flex:1}
+  .level-badge{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.5px;padding:3px 10px;border-radius:20px;margin-bottom:10px}
+  .lvl-0{background:#12321a;color:var(--green)} .lvl-1{background:#152f4a;color:var(--blue)} .lvl-2{background:#3b2a10;color:var(--yellow)} .lvl-3{background:#31203f;color:var(--purple)}
+  #task-num{font-size:12px;color:var(--dim);margin-bottom:4px}
+  #task-title{font-size:18px;font-weight:600;color:#e6edf3;margin-bottom:10px}
+  #task-text{font-size:14px;line-height:1.6;color:var(--term-text)}
+  #task-text code, #hint-box code, #solution-box code{background:#0a0e14;border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-family:var(--font-mono);font-size:13px;color:#79c0ff}
+  .task-buttons{display:flex;gap:10px;margin-top:16px}
+  #hint-box,#solution-box{display:none;margin-top:14px;padding:12px 14px;border-radius:8px;font-size:13.5px;line-height:1.55}
+  #hint-box{background:#2b230b;border:1px solid #4d3a00}
+  #solution-box{background:#101c2c;border:1px solid #1f4068}
+  #solution-box .sol-cmd{font-family:var(--font-mono);font-size:15px;color:#79c0ff;display:block;margin-top:6px;background:#0a0e14;padding:8px 12px;border-radius:6px;border:1px solid var(--border)}
+  #done-banner{display:none;margin-top:16px;padding:14px;background:#12321a;border:1px solid #238636;border-radius:8px;text-align:center}
+  #done-banner .big{font-size:16px;font-weight:700;color:var(--green);margin-bottom:10px}
+  #all-done{display:none;margin-top:16px;padding:18px;background:#31203f;border:1px solid var(--purple);border-radius:8px;text-align:center;font-size:15px;line-height:1.6}
+
+  /* список заданий */
+  #task-list{border-top:1px solid var(--border);max-height:38%;overflow-y:auto;padding:10px 12px;flex-shrink:0}
+  #task-list h3{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin:8px 0 4px}
+  .tl-item{display:flex;align-items:center;gap:8px;padding:3px 8px;font-size:13px;border-radius:5px;cursor:pointer;color:var(--dim)}
+  .tl-item:hover{background:#21262d}
+  .tl-item.done{color:var(--green)}
+  .tl-item.current{background:#1c2c44;color:#e6edf3}
+  .tl-check{width:16px;text-align:center;flex-shrink:0}
+
+  footer{padding:8px 18px;background:var(--panel);border-top:1px solid var(--border);display:flex;gap:10px;align-items:center;font-size:12px;color:var(--dim);flex-shrink:0}
+
+  /* ===== модалка пожеланий ===== */
+  #wish-overlay{display:none;position:fixed;inset:0;background:rgba(1,4,9,.7);z-index:50;align-items:center;justify-content:center}
+  #wish-overlay.open{display:flex}
+  #wish-modal{width:min(640px,92vw);max-height:86vh;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px 20px;box-shadow:0 16px 48px rgba(0,0,0,.6)}
+  .wish-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .wish-sub{font-size:13px;color:var(--dim);line-height:1.55;margin-bottom:14px}
+  .wish-form{display:flex;gap:10px;align-items:flex-end;margin-bottom:14px}
+  .wish-form textarea{flex:1;background:#0a0e14;border:1px solid var(--border);border-radius:8px;color:var(--term-text);font-family:var(--font-ui);font-size:14px;padding:9px 12px;resize:vertical;outline:none}
+  .wish-form textarea:focus{border-color:#1f6feb}
+  #wish-list{overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+  .wish-item{background:#0d1420;border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:13.5px;line-height:1.5;display:flex;gap:10px;align-items:flex-start}
+  .wish-item .w-body{flex:1;white-space:pre-wrap;word-break:break-word}
+  .wish-item .w-meta{font-size:11px;color:var(--dim);margin-top:4px}
+  .wish-item button{padding:2px 8px;font-size:12px;flex-shrink:0}
+  .wish-empty{color:var(--dim);font-size:13px;text-align:center;padding:14px}
+  .wish-foot{display:flex;gap:12px;align-items:center;border-top:1px solid var(--border);padding-top:14px}
+  .wish-foot .c-dim{color:var(--dim)}
+
+  /* печать протокола */
+  #print-area{display:none}
+  @media print{
+    body>*{display:none !important}
+    #print-area{display:block !important;color:#000;font-family:var(--font-ui);padding:30px}
+    #print-area h1{font-size:20px;margin-bottom:6px}
+    #print-area .meta{margin:12px 0;font-size:14px}
+    #print-area table{border-collapse:collapse;width:100%;font-size:13px}
+    #print-area td,#print-area th{border:1px solid #444;padding:5px 9px;text-align:left}
+    #print-area .sign{margin-top:50px;font-size:14px}
+  }
+  @media (max-width:900px){ main{flex-direction:column} #task-col{max-width:none;min-width:0} #term-col{border-right:none;border-bottom:1px solid var(--border)} }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">🐧</span>
+  <div>
+    <h1>Линукс-Тренажёр</h1>
+    <div class="sub">имитация терминала Astra Linux 1.8 · fly-term</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="progress-wrap">
+    <span id="progress-label">0 / 0</span>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+  </div>
+  <button onclick="openWishes()" title="Написать пожелание разработчикам и выгрузить в JSON">💬 Пожелания <span id="wish-count" style="display:none;background:#1f6feb;color:#fff;border-radius:10px;padding:0 7px;font-size:11px;margin-left:2px"></span></button>
+  <button onclick="printProtocol()" title="Распечатать протокол выполнения под роспись">📄 Протокол</button>
+  <button onclick="resetAll()" title="Сбросить весь прогресс и файловую систему">↺ Сброс</button>
+</header>
+
+<main>
+  <div id="term-col">
+    <div id="term-titlebar">
+      <span class="tl-dot" style="background:#f85149"></span>
+      <span class="tl-dot" style="background:#d29922"></span>
+      <span class="tl-dot" style="background:#3fb950"></span>
+      <span style="margin-left:6px">student@astralinux — fly-term</span>
+    </div>
+    <div id="terminal" onclick="focusInput(event)"></div>
+  </div>
+
+  <div id="task-col">
+    <div id="task-card">
+      <span class="level-badge" id="task-level"></span>
+      <div id="task-num"></div>
+      <div id="task-title"></div>
+      <div id="task-text"></div>
+      <div class="task-buttons">
+        <button onclick="showHint()">💡 Подсказка</button>
+        <button onclick="showSolution()">👁 Показать решение</button>
+      </div>
+      <div id="hint-box"></div>
+      <div id="solution-box"></div>
+      <div id="done-banner">
+        <div class="big">✅ Задание выполнено!</div>
+        <button class="primary" onclick="nextTask()">Следующее задание →</button>
+      </div>
+      <div id="all-done">
+        🏆 <b>Все задания выполнены!</b><br>
+        Ты прошёл путь от новичка до продвинутого пользователя терминала.
+        Нажми «📄 Протокол», чтобы распечатать итог под роспись.
+      </div>
+    </div>
+    <div id="task-list"></div>
+  </div>
+</main>
+
+<footer>
+  <span>⌨️ <b>Tab</b> — дописать команду или путь · <b>↑ ↓</b> — история команд · <code style="font-family:var(--font-mono)">help</code> — список команд · <code style="font-family:var(--font-mono)">man &lt;команда&gt;</code> — справка</span>
+</footer>
+
+<div id="print-area"></div>
+
+<!-- ===== Модалка пожеланий ===== -->
+<div id="wish-overlay" onclick="if(event.target===this)closeWishes()">
+  <div id="wish-modal">
+    <div class="wish-head">
+      <span style="font-size:16px;font-weight:600">💬 Пожелания разработчикам</span>
+      <button onclick="closeWishes()" style="padding:2px 10px">✕</button>
+    </div>
+    <div class="wish-sub">Чего не хватает? Что неудобно? Какие задания добавить? Пиши всё сюда —
+      потом нажми <b>«Выгрузить JSON»</b> и отправь скачанный файл — мы возьмём его в работу и поправим тренажёр по твоим хотелкам.</div>
+    <div class="wish-form">
+      <textarea id="wish-text" rows="3" placeholder="Например: добавьте задания про пайпы | и sudo, и сделайте шрифт покрупнее…"></textarea>
+      <button class="primary" onclick="addWish()">➕ Добавить</button>
+    </div>
+    <div id="wish-list"></div>
+    <div class="wish-foot">
+      <button class="primary" onclick="exportWishes()">⬇ Выгрузить JSON</button>
+      <span class="c-dim" style="font-size:12px">файл сохранится в Загрузки — пришли его нам</span>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+   ВИРТУАЛЬНАЯ ФАЙЛОВАЯ СИСТЕМА
+   ================================================================ */
+function dir(children){ return {type:'dir', children: children||{}}; }
+function file(content, mode){ return {type:'file', content: content||'', mode: mode||'rw-r--r--'}; }
+
+function freshFS(){
+  return dir({
+    'bin': dir({'bash':file('',"rwxr-xr-x"),'ls':file('',"rwxr-xr-x"),'cp':file('',"rwxr-xr-x"),'mv':file('',"rwxr-xr-x")}),
+    'etc': dir({
+      'hostname': file('astralinux\n'),
+      'os-release': file('NAME="Astra Linux"\nVERSION="1.8 (voronezh)"\nID=astra\n'),
+      'passwd': file('root:x:0:0:root:/root:/bin/bash\nstudent:x:1000:1000:Студент:/home/student:/bin/bash\n'),
+      'shadow': Object.assign(file('root:$6$xK9…хэш_пароля_root…\nstudent:$6$mQ2…хэш_пароля_student…\n','rw-------'),{restricted:true}),
+    }),
+    'home': dir({
+      'student': dir({
+        'Документы': dir({
+          'записка.txt': file('Привет! Это твоя первая записка.\nТерминал — это просто.\n'),
+          'старый_отчёт.txt': file('Отчёт за прошлый год.\nВсё было хорошо.\n'),
+        }),
+        'Загрузки': dir({
+          'архив.zip': file('[двоичные данные]\n'),
+          'программа.deb': file('[двоичные данные]\n'),
+        }),
+        'Музыка': dir({}),
+        'Изображения': dir({ 'фото1.png': file('[картинка]\n') }),
+        'рабочий_файл.txt': file('строка один\nстрока два\nстрока три\n'),
+        'журнал.log': file('2026-01-10 система запущена\n2026-01-11 вход пользователя student\n2026-01-12 ОШИБКА: диск переполнен\n2026-01-13 диск очищен\n2026-01-14 вход пользователя student\n2026-01-15 обновление установлено\n2026-01-16 система работает стабильно\n'),
+        'скрипт.sh': file('#!/bin/bash\necho "Привет из скрипта!"\n'),
+        '.секретный_файл': file('Ты нашёл скрытый файл! Молодец.\n'),
+      }),
+    }),
+    'root': dir({}),
+    'tmp': dir({}),
+    'usr': dir({'bin':dir({}),'share':dir({})}),
+    'var': dir({'log': dir({'syslog': file('журнал системы\n')})}),
+  });
+}
+
+let FS = freshFS();
+let CWD = '/home/student';
+const HOME = '/home/student';
+
+/* --- утилиты путей --- */
+function normalize(parts){
+  const out=[];
+  for(const p of parts){
+    if(p===''||p==='.') continue;
+    if(p==='..'){ out.pop(); continue; }
+    out.push(p);
+  }
+  return '/'+out.join('/');
+}
+function resolvePath(path){
+  if(!path) return CWD;
+  if(path==='~') path=HOME;
+  else if(path.startsWith('~/')) path=HOME+path.slice(1);
+  const base = path.startsWith('/') ? [] : CWD.split('/').filter(Boolean);
+  return normalize(base.concat(path.split('/')));
+}
+function getNode(absPath){
+  if(absPath==='/') return FS;
+  let node=FS;
+  for(const part of absPath.split('/').filter(Boolean)){
+    if(!node || node.type!=='dir' || !(part in node.children)) return null;
+    node=node.children[part];
+  }
+  return node;
+}
+function parentOf(absPath){
+  const parts=absPath.split('/').filter(Boolean);
+  const name=parts.pop();
+  return {parent:getNode('/'+parts.join('/')), name};
+}
+function displayCwd(){ return CWD===HOME ? '~' : (CWD.startsWith(HOME+'/') ? '~'+CWD.slice(HOME.length) : CWD); }
+
+/* ================================================================
+   ТЕРМИНАЛ: вывод
+   ================================================================ */
+const termEl=document.getElementById('terminal');
+function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function printLine(html, cls){
+  const d=document.createElement('div');
+  d.className='line'+(cls?' '+cls:'');
+  d.innerHTML=html;
+  termEl.insertBefore(d, inputLineEl);
+  termEl.scrollTop=termEl.scrollHeight;
+}
+function printText(text, cls){ if(text==='') return; text.split('\n').forEach(l=>printLine(esc(l),cls)); }
+function promptHtml(){
+  return '<span class="c-prompt">student@astralinux</span><span class="c-dim">:</span><span class="c-path">'+esc(displayCwd())+'</span><span class="c-dim">$</span>';
+}
+
+/* строка ввода */
+const inputLineEl=document.createElement('div');
+inputLineEl.id='input-line';
+inputLineEl.innerHTML='<span id="prompt-span"></span><input id="cmd-input" autocomplete="off" spellcheck="false">';
+termEl.appendChild(inputLineEl);
+const inputEl=inputLineEl.querySelector('#cmd-input');
+const promptSpan=inputLineEl.querySelector('#prompt-span');
+function refreshPrompt(){ promptSpan.innerHTML=promptHtml(); }
+function focusInput(e){ if(window.getSelection().toString()==='') inputEl.focus(); }
+
+/* ================================================================
+   ТОКЕНИЗАТОР + КОМАНДЫ
+   ================================================================ */
+function tokenize(raw){
+  /* токены с типом кавычки: q=null|'"'|"'" — нужно для $переменных и глоббинга */
+  const tokens=[]; let cur=''; let q=null; let tq=null; let has=false;
+  for(let i=0;i<raw.length;i++){
+    const ch=raw[i];
+    if(q){ if(ch===q){q=null;} else cur+=ch; has=true; continue; }
+    if(ch==='"'||ch==="'"){ q=ch; tq=tq||ch; has=true; continue; }
+    if(ch===' '||ch==='\t'){ if(has||cur){tokens.push({t:cur,q:tq});cur='';tq=null;has=false;} continue; }
+    cur+=ch; has=true;
+  }
+  if(has||cur) tokens.push({t:cur,q:tq});
+  return tokens;
+}
+function splitFlags(args){
+  const flags=new Set(); const rest=[];
+  for(const a of args){
+    if(a.startsWith('-') && a.length>1 && !/^-?\d+$/.test(a.slice(1)) && a!=='--'){
+      for(const c of a.slice(1)) flags.add(c);
+    } else rest.push(a);
+  }
+  return {flags, rest};
+}
+
+let history=[]; let histIdx=-1;
+let lastResult={cmd:'',args:[],raw:'',output:'',ok:true};
+
+const MAN={
+  pwd:'pwd — показать, в какой папке ты сейчас находишься (print working directory).',
+  ls:'ls — показать содержимое папки.\n  ls -l  подробный список (права, размер)\n  ls -a  показать и скрытые файлы (начинаются с точки)',
+  cd:'cd <папка> — перейти в папку.\n  cd ..  на уровень вверх\n  cd ~   или просто cd — в домашнюю папку\n  cd /   в корень системы',
+  mkdir:'mkdir <имя> — создать папку.\n  mkdir -p а/б/в — создать сразу цепочку вложенных папок',
+  touch:'touch <имя> — создать пустой файл.',
+  cat:'cat <файл> — показать содержимое файла.',
+  echo:'echo "текст" — напечатать текст.\n  echo "текст" > файл   записать текст в файл (перезапись)\n  echo "текст" >> файл  дописать текст в конец файла',
+  cp:'cp <что> <куда> — скопировать файл.\n  cp -r <папка> <куда> — скопировать папку целиком',
+  mv:'mv <что> <куда> — переместить или переименовать файл/папку.',
+  rm:'rm <файл> — удалить файл.\n  rm -r <папка> — удалить папку со всем содержимым (ОСТОРОЖНО!)',
+  rmdir:'rmdir <папка> — удалить ПУСТУЮ папку.',
+  find:'find <где> -name "<шаблон>" — найти файлы по имени.\n  Пример: find . -name "*.txt"',
+  grep:'grep "<что искать>" <файл> — найти строки с текстом в файле.',
+  head:'head <файл> — показать первые 10 строк.\n  head -n 3 <файл> — первые 3 строки',
+  tail:'tail <файл> — показать последние 10 строк.\n  tail -n 2 <файл> — последние 2 строки',
+  wc:'wc -l <файл> — посчитать количество строк в файле.',
+  chmod:'chmod +x <файл> — сделать файл исполняемым (разрешить запуск).\n  chmod 755 <файл> — права числами: 7=rwx, 5=r-x, 6=rw-, 4=r--, 0=---',
+  sort:'sort <файл> — вывести строки по алфавиту.\n  sort -r — в обратном порядке. Работает и через пайп: команда | sort',
+  uniq:'uniq — убрать подряд идущие повторы строк.\n  Обычно в паре: sort файл | uniq',
+  which:'which <команда> — показать, где лежит программа этой команды.',
+  env:'env — показать все переменные окружения.',
+  export:'export ИМЯ=значение — создать переменную окружения.\n  Прочитать: echo $ИМЯ',
+  ps:'ps — список запущенных процессов (PID и имя).',
+  kill:'kill <PID> — завершить процесс по его номеру. Номер смотри в ps.',
+  sudo:'sudo <команда> — выполнить команду от имени администратора (root).',
+  tar:'tar -czf архив.tar.gz папка — упаковать папку в архив.\n  tar -xzf архив.tar.gz — распаковать архив в текущую папку.',
+  whoami:'whoami — показать имя текущего пользователя.',
+  hostname:'hostname — показать имя компьютера.',
+  date:'date — показать текущую дату и время.',
+  clear:'clear — очистить экран терминала.',
+  history:'history — показать историю введённых команд.',
+  man:'man <команда> — справка по команде.',
+  help:'help — список всех доступных команд.',
+};
+
+const COMMANDS={
+  pwd(){ return CWD; },
+  whoami(){ return 'student'; },
+  hostname(){ return 'astralinux'; },
+  date(){ return new Date().toLocaleString('ru-RU'); },
+  clear(){ termEl.querySelectorAll('.line').forEach(l=>l.remove()); return ''; },
+  history(){ return history.map((h,i)=>String(i+1).padStart(4)+'  '+h).join('\n'); },
+  help(){
+    return 'Доступные команды:\n\n'+
+      '  pwd        где я нахожусь\n'+
+      '  ls         что в папке (-l подробно, -a скрытые)\n'+
+      '  cd         перейти в папку (cd .. — вверх, cd ~ — домой)\n'+
+      '  mkdir      создать папку (-p — цепочку папок)\n'+
+      '  touch      создать пустой файл\n'+
+      '  cat        показать файл\n'+
+      '  echo       напечатать текст (> в файл, >> дописать)\n'+
+      '  cp         копировать (-r для папок)\n'+
+      '  mv         переместить / переименовать\n'+
+      '  rm         удалить файл (-r папку с содержимым)\n'+
+      '  rmdir      удалить пустую папку\n'+
+      '  find       найти файлы по имени\n'+
+      '  grep       найти текст в файле\n'+
+      '  head/tail  начало / конец файла\n'+
+      '  wc -l      посчитать строки\n'+
+      '  chmod      права файла (+x — исполняемый)\n'+
+      '  sort/uniq  сортировка / убрать повторы\n'+
+      '  which      где лежит команда\n'+
+      '  env/export переменные окружения (читать: echo $ИМЯ)\n'+
+      '  ps / kill  процессы: список / завершить по PID\n'+
+      '  sudo       выполнить от имени root\n'+
+      '  tar        архивы: -czf упаковать, -xzf распаковать\n'+
+      '  whoami / hostname / date / history / clear\n'+
+      '  man <команда> — подробная справка\n\n'+
+      'Связки:\n'+
+      '  команда1 | команда2   конвейер: вывод первой → вход второй\n'+
+      '  команда1 && команда2  цепочка: вторая выполнится, если первая успешна\n'+
+      '  команда > файл        записать вывод в файл (>> — дописать)\n'+
+      '  *.txt                 шаблон: любые имена с .txt';
+  },
+  man(args){
+    if(!args[0]) throw 'Какая команда интересует? Пример: man ls';
+    if(!(args[0] in MAN)) throw 'man: нет справки для «'+args[0]+'»';
+    return MAN[args[0]];
+  },
+  ls(args){
+    const {flags,rest}=splitFlags(args);
+    if(rest.length>1){
+      /* несколько аргументов — например после глоббинга ls *.txt */
+      return rest.map(x=>{
+        const n=getNode(resolvePath(x));
+        if(!n) throw 'ls: нет доступа к «'+x+'»: Нет такого файла или каталога';
+        return (n.type==='dir'?'<DIR>':(n.mode||'').includes('x')?'<EXE>':'<F>')+x;
+      }).join('\x00');
+    }
+    const target=resolvePath(rest[0]||'.');
+    const node=getNode(target);
+    if(!node) throw 'ls: нет доступа к «'+(rest[0]||target)+'»: Нет такого файла или каталога';
+    if(node.type==='file') return rest[0]||target;
+    let names=Object.keys(node.children).sort((a,b)=>a.localeCompare(b,'ru'));
+    if(!flags.has('a')) names=names.filter(n=>!n.startsWith('.'));
+    else names=['.','..'].concat(names);
+    if(flags.has('l')){
+      return names.map(n=>{
+        const ch=(n==='.'||n==='..')?dir():node.children[n];
+        const isDir=ch.type==='dir';
+        const mode=(isDir?'d':'-')+(isDir?'rwxr-xr-x':(ch.mode||'rw-r--r--'));
+        const size=isDir?4096:(ch.content||'').length;
+        return mode+' student student '+String(size).padStart(6)+' '+n;
+      }).join('\n');
+    }
+    return names.map(n=>{
+      const ch=(n==='.'||n==='..')?dir():node.children[n];
+      if(ch.type==='dir') return '<DIR>'+n;
+      if((ch.mode||'').includes('x')) return '<EXE>'+n;
+      return '<F>'+n;
+    }).join('\x00');
+  },
+  cd(args){
+    const target=resolvePath(args[0]||'~');
+    const node=getNode(target);
+    if(!node) throw 'cd: '+(args[0]||'~')+': Нет такого файла или каталога';
+    if(node.type!=='dir') throw 'cd: '+args[0]+': Это не каталог';
+    CWD=target;
+    return '';
+  },
+  mkdir(args){
+    const {flags,rest}=splitFlags(args);
+    if(!rest.length) throw 'mkdir: пропущен операнд. Пример: mkdir новая_папка';
+    for(const a of rest){
+      const abs=resolvePath(a);
+      if(flags.has('p')){
+        let cur=FS;
+        for(const part of abs.split('/').filter(Boolean)){
+          if(!(part in cur.children)) cur.children[part]=dir();
+          cur=cur.children[part];
+          if(cur.type!=='dir') throw 'mkdir: «'+a+'»: путь проходит через файл';
+        }
+      } else {
+        const {parent,name}=parentOf(abs);
+        if(!parent||parent.type!=='dir') throw 'mkdir: невозможно создать каталог «'+a+'»: Нет такого файла или каталога';
+        if(name in parent.children) throw 'mkdir: невозможно создать каталог «'+a+'»: Файл существует';
+        parent.children[name]=dir();
+      }
+    }
+    return '';
+  },
+  touch(args){
+    if(!args.length) throw 'touch: пропущен операнд. Пример: touch файл.txt';
+    for(const a of args){
+      const abs=resolvePath(a);
+      const {parent,name}=parentOf(abs);
+      if(!parent||parent.type!=='dir') throw 'touch: невозможно выполнить touch для «'+a+'»: Нет такого файла или каталога';
+      if(!(name in parent.children)) parent.children[name]=file('');
+    }
+    return '';
+  },
+  cat(args, stdin, sudo){
+    const {rest}=splitFlags(args);
+    if(!rest.length){
+      if(stdin!=null) return stdin;
+      throw 'cat: укажи файл. Пример: cat записка.txt';
+    }
+    let out=[];
+    for(const a of rest){
+      const node=getNode(resolvePath(a));
+      if(!node) throw 'cat: '+a+': Нет такого файла или каталога';
+      if(node.type==='dir') throw 'cat: '+a+': Это каталог';
+      if(node.restricted&&!sudo) throw 'cat: '+a+': Отказано в доступе (файл только для root — попробуй sudo)';
+      out.push(node.content.replace(/\n$/,''));
+    }
+    return out.join('\n');
+  },
+  echo(args){ return args.join(' '); },
+  cp(args){
+    const {flags,rest}=splitFlags(args);
+    if(rest.length<2) throw 'cp: нужно два аргумента: cp <что> <куда>';
+    const src=getNode(resolvePath(rest[0]));
+    if(!src) throw 'cp: невозможно выполнить stat для «'+rest[0]+'»: Нет такого файла или каталога';
+    if(src.type==='dir'&&!flags.has('r')) throw 'cp: -r не указан; пропускается каталог «'+rest[0]+'». Для папок: cp -r';
+    let destAbs=resolvePath(rest[1]);
+    let destNode=getNode(destAbs);
+    if(destNode&&destNode.type==='dir') destAbs=destAbs+'/'+resolvePath(rest[0]).split('/').pop();
+    const {parent,name}=parentOf(destAbs);
+    if(!parent||parent.type!=='dir') throw 'cp: невозможно создать «'+rest[1]+'»: Нет такого файла или каталога';
+    parent.children[name]=JSON.parse(JSON.stringify(src));
+    return '';
+  },
+  mv(args){
+    const {rest}=splitFlags(args);
+    if(rest.length<2) throw 'mv: нужно два аргумента: mv <что> <куда>';
+    const srcAbs=resolvePath(rest[0]);
+    const src=getNode(srcAbs);
+    if(!src) throw 'mv: невозможно выполнить stat для «'+rest[0]+'»: Нет такого файла или каталога';
+    let destAbs=resolvePath(rest[1]);
+    let destNode=getNode(destAbs);
+    if(destNode&&destNode.type==='dir') destAbs=destAbs+'/'+srcAbs.split('/').pop();
+    const sp=parentOf(srcAbs), dp=parentOf(destAbs);
+    if(!dp.parent||dp.parent.type!=='dir') throw 'mv: невозможно переместить в «'+rest[1]+'»: Нет такого файла или каталога';
+    dp.parent.children[dp.name]=src;
+    delete sp.parent.children[sp.name];
+    return '';
+  },
+  rm(args){
+    const {flags,rest}=splitFlags(args);
+    if(!rest.length) throw 'rm: пропущен операнд. Пример: rm файл.txt';
+    for(const a of rest){
+      const abs=resolvePath(a);
+      const node=getNode(abs);
+      if(!node) throw 'rm: невозможно удалить «'+a+'»: Нет такого файла или каталога';
+      if(node.type==='dir'&&!flags.has('r')) throw 'rm: невозможно удалить «'+a+'»: Это каталог. Для папок: rm -r';
+      if(abs===HOME||abs==='/') throw 'rm: отказано — эту папку удалять нельзя 🙂';
+      const {parent,name}=parentOf(abs);
+      delete parent.children[name];
+    }
+    return '';
+  },
+  rmdir(args){
+    if(!args.length) throw 'rmdir: пропущен операнд';
+    for(const a of args){
+      const abs=resolvePath(a);
+      const node=getNode(abs);
+      if(!node) throw 'rmdir: «'+a+'»: Нет такого файла или каталога';
+      if(node.type!=='dir') throw 'rmdir: «'+a+'»: Это не каталог';
+      if(Object.keys(node.children).length) throw 'rmdir: «'+a+'»: Каталог не пуст (для непустых — rm -r)';
+      const {parent,name}=parentOf(abs);
+      delete parent.children[name];
+    }
+    return '';
+  },
+  find(args){
+    let where='.'; let pattern=null; let type=null;
+    const a=[...args];
+    if(a[0]&&!a[0].startsWith('-')) where=a.shift();
+    const ni=a.indexOf('-name');
+    if(ni>=0) pattern=a[ni+1];
+    const ti=a.indexOf('-type');
+    if(ti>=0){ type=a[ti+1]; if(type!=='d'&&type!=='f') throw 'find: -type принимает d (каталоги) или f (файлы)'; }
+    const startAbs=resolvePath(where);
+    const start=getNode(startAbs);
+    if(!start) throw 'find: «'+where+'»: Нет такого файла или каталога';
+    const re=pattern?new RegExp('^'+pattern.replace(/[.+^${}()|[\]\\]/g,'\\$&').replace(/\*/g,'.*').replace(/\?/g,'.')+'$'):null;
+    const out=[];
+    (function walk(node,path){
+      const base=path===''?where.replace(/\/$/,''):path;
+      const okName=!re||re.test(base.split('/').pop());
+      const okType=!type||(type==='d'?node.type==='dir':node.type==='file');
+      if(okName&&okType) out.push(base||where);
+      if(node.type==='dir') for(const k of Object.keys(node.children).sort((x,y)=>x.localeCompare(y,'ru'))) walk(node.children[k],(base||where)+'/'+k);
+    })(start,'');
+    return out.join('\n');
+  },
+  grep(args, stdin){
+    const {rest}=splitFlags(args);
+    if(rest.length===1&&stdin!=null)
+      return stdin.split('\n').filter(l=>l.includes(rest[0])).join('\n');
+    if(rest.length<2) throw 'grep: нужно так: grep "что ищем" файл (или через пайп: команда | grep "что ищем")';
+    const [pat,...files]=rest;
+    let out=[];
+    for(const f of files){
+      const node=getNode(resolvePath(f));
+      if(!node) throw 'grep: '+f+': Нет такого файла или каталога';
+      if(node.type==='dir') throw 'grep: '+f+': Это каталог';
+      node.content.split('\n').forEach(l=>{ if(l.includes(pat)) out.push(files.length>1?f+':'+l:l); });
+    }
+    return out.join('\n');
+  },
+  head(args, stdin){ return headTail(args,'head',stdin); },
+  tail(args, stdin){ return headTail(args,'tail',stdin); },
+  wc(args, stdin){
+    const {flags,rest}=splitFlags(args);
+    let content, label='';
+    if(rest.length){
+      const node=getNode(resolvePath(rest[0]));
+      if(!node||node.type==='dir') throw 'wc: '+rest[0]+': Нет такого файла или это каталог';
+      content=node.content; label=' '+rest[0];
+    } else if(stdin!=null){ content=stdin.endsWith('\n')?stdin:stdin+'\n'; if(stdin==='') content=''; }
+    else throw 'wc: укажи файл. Пример: wc -l журнал.log';
+    const lines=content.split('\n').filter((l,i,arr)=>!(i===arr.length-1&&l==='')).length;
+    const words=content.split(/\s+/).filter(Boolean).length;
+    if(flags.has('l')) return lines+label;
+    return lines+' '+words+' '+content.length+label;
+  },
+  chmod(args){
+    if(args.length<2) throw 'chmod: нужно так: chmod +x файл (или chmod 755 файл)';
+    const [mode,f]=args;
+    const node=getNode(resolvePath(f));
+    if(!node) throw 'chmod: невозможно получить доступ к «'+f+'»: Нет такого файла или каталога';
+    if(/^[0-7]{3}$/.test(mode)) node.mode=[...mode].map(d=>(d&4?'r':'-')+(d&2?'w':'-')+(d&1?'x':'-')).join('');
+    else if(mode==='+x') node.mode='rwxr-xr-x';
+    else if(mode==='-x') node.mode='rw-r--r--';
+    else throw 'chmod: в тренажёре поддерживается +x, -x и числа вида 755';
+    return '';
+  },
+  sort(args, stdin){
+    const {flags,rest}=splitFlags(args);
+    let lines;
+    if(rest.length){
+      const n=getNode(resolvePath(rest[0]));
+      if(!n||n.type==='dir') throw 'sort: '+rest[0]+': Нет такого файла';
+      lines=n.content.replace(/\n$/,'').split('\n');
+    } else if(stdin!=null) lines=stdin.split('\n');
+    else throw 'sort: укажи файл. Пример: sort имена.txt';
+    lines.sort((a,b)=>a.localeCompare(b,'ru'));
+    if(flags.has('r')) lines.reverse();
+    return lines.join('\n');
+  },
+  uniq(args, stdin){
+    let lines;
+    if(args.length){
+      const n=getNode(resolvePath(args[0]));
+      if(!n||n.type==='dir') throw 'uniq: '+args[0]+': Нет такого файла';
+      lines=n.content.replace(/\n$/,'').split('\n');
+    } else if(stdin!=null) lines=stdin.split('\n');
+    else throw 'uniq: укажи файл или подай данные через пайп: sort файл | uniq';
+    return lines.filter((l,i)=>i===0||l!==lines[i-1]).join('\n');
+  },
+  which(args){
+    if(!args[0]) throw 'which: укажи команду. Пример: which ls';
+    if(args[0] in COMMANDS) return '/usr/bin/'+args[0];
+    throw 'which: '+args[0]+': не найдено';
+  },
+  env(){ return Object.entries(VARS).map(([k,v])=>k+'='+v).join('\n'); },
+  export(args){
+    const eq=(args[0]||'').indexOf('=');
+    if(eq<1) throw 'export: нужно так: export ИМЯ=значение';
+    VARS[args[0].slice(0,eq)]=args[0].slice(eq+1);
+    return '';
+  },
+  ps(){ return '  PID CMD\n'+PROCS.map(p=>String(p.pid).padStart(5)+' '+p.cmd).join('\n'); },
+  kill(args){
+    const pid=parseInt(args[0],10);
+    if(!pid) throw 'kill: укажи номер процесса (PID). Список — командой ps';
+    const i=PROCS.findIndex(p=>p.pid===pid);
+    if(i<0) throw 'kill: ('+args[0]+') — нет такого процесса';
+    if(PROCS[i].pid===1||PROCS[i].cmd==='bash') throw 'kill: этот процесс лучше не трогать — система на нём держится 🙂';
+    const name=PROCS[i].cmd; PROCS.splice(i,1);
+    return 'процесс '+pid+' ('+name+') завершён';
+  },
+  sudo(){ throw 'sudo: укажи команду. Пример: sudo cat /etc/shadow'; },
+  tar(args){
+    const {flags,rest}=splitFlags(args);
+    if(flags.has('c')){
+      if(rest.length<2) throw 'tar: нужно так: tar -czf архив.tar.gz папка';
+      const srcAbs=resolvePath(rest[1]);
+      const src=getNode(srcAbs);
+      if(!src) throw 'tar: '+rest[1]+': Нет такого файла или каталога';
+      const {parent,name}=parentOf(resolvePath(rest[0]));
+      if(!parent||parent.type!=='dir') throw 'tar: невозможно создать '+rest[0];
+      const f=file('[архив tar.gz]\n');
+      f.archive={name:srcAbs.split('/').pop(), node:JSON.parse(JSON.stringify(src))};
+      parent.children[name]=f;
+      return '';
+    }
+    if(flags.has('x')){
+      if(!rest.length) throw 'tar: нужно так: tar -xzf архив.tar.gz';
+      const node=getNode(resolvePath(rest[0]));
+      if(!node||!node.archive) throw 'tar: '+rest[0]+': это не архив тренажёра';
+      getNode(CWD).children[node.archive.name]=JSON.parse(JSON.stringify(node.archive.node));
+      return node.archive.name+'/';
+    }
+    throw 'tar: в тренажёре: -czf (упаковать) и -xzf (распаковать)';
+  },
+};
+function headTail(args, which, stdin){
+  const rest=[]; let n=10;
+  for(let i=0;i<args.length;i++){
+    if(args[i]==='-n'){ n=parseInt(args[++i],10); }
+    else if(/^-\d+$/.test(args[i])){ n=parseInt(args[i].slice(1),10); }
+    else rest.push(args[i]);
+  }
+  let lines;
+  if(rest.length){
+    const node=getNode(resolvePath(rest[0]));
+    if(!node) throw which+': невозможно открыть «'+rest[0]+'»: Нет такого файла или каталога';
+    if(node.type==='dir') throw which+': «'+rest[0]+'»: Это каталог';
+    lines=node.content.replace(/\n$/,'').split('\n');
+  } else if(stdin!=null) lines=stdin.split('\n');
+  else throw which+': укажи файл';
+  return (which==='head'?lines.slice(0,n):lines.slice(-n)).join('\n');
+}
+
+/* выполнение строки: поддержка $переменных, глоббинга *, sudo, конвейера |, цепочки && и редиректов */
+const VARS={HOME:'/home/student',USER:'student',PATH:'/usr/bin:/bin',SHELL:'/bin/bash'};
+const PROCS=[{pid:1,cmd:'init'},{pid:812,cmd:'fly-wm (рабочий стол)'},{pid:1024,cmd:'браузер (завис, не отвечает)'},{pid:1337,cmd:'bash'}];
+function lsPlain(s){ return s.includes('\x00') ? s.split('\x00').map(n=>n.replace(/^<(DIR|EXE|F)>/,'')).join('\n') : s; }
+function expandToken(tok){
+  let t=tok.t;
+  if(tok.q!=="'") t=t.replace(/\$([A-Za-z_]\w*)/g,(m,v)=>VARS[v]!==undefined?VARS[v]:'');
+  if(tok.q===null&&/[*?]/.test(t)&&!t.startsWith('-')){
+    const slash=t.lastIndexOf('/');
+    const dirPart=slash>=0?t.slice(0,slash+1):'';
+    const namePart=slash>=0?t.slice(slash+1):t;
+    const node=getNode(resolvePath(dirPart||'.'));
+    if(node&&node.type==='dir'){
+      const re=new RegExp('^'+namePart.replace(/[.+^${}()|[\]\\]/g,'\\$&').replace(/\*/g,'.*').replace(/\?/g,'.')+'$');
+      const hits=Object.keys(node.children).filter(n=>!n.startsWith('.')&&re.test(n)).sort((a,b)=>a.localeCompare(b,'ru')).map(n=>dirPart+n);
+      if(hits.length) return hits;
+    }
+  }
+  return [t];
+}
+function runSegment(body, stdin){
+  let toks=tokenize(body).flatMap(expandToken);
+  if(!toks.length) throw 'bash: синтаксическая ошибка (пустая команда)';
+  let sudo=false;
+  if(toks[0]==='sudo'){ sudo=true; toks=toks.slice(1); if(!toks.length) throw 'sudo: укажи команду. Пример: sudo cat /etc/shadow'; }
+  const cmd=toks[0], args=toks.slice(1);
+  if(/^\.\//.test(cmd)){
+    const node=getNode(resolvePath(cmd.slice(2)));
+    if(!node) throw 'bash: '+cmd+': Нет такого файла или каталога';
+    if(!(node.mode||'').includes('x')) throw 'bash: '+cmd+': Отказано в доступе (файл не исполняемый — сделай chmod +x)';
+    return {cmd,args,out:(node.content.match(/echo "(.*)"/)||[])[1]||''};
+  }
+  if(!(cmd in COMMANDS)) throw cmd+': команда не найдена. Набери help — покажу все команды.';
+  return {cmd,args,out:COMMANDS[cmd](args,stdin,sudo)||''};
+}
+function execute(raw){
+  raw=raw.trim();
+  printLine(promptHtml()+' '+esc(raw));
+  if(raw===''){ lastResult={cmd:'',args:[],raw:'',output:'',ok:true}; return; }
+  history.push(raw); histIdx=history.length;
+  let output='', ok=true, cmd='', args=[];
+  try{
+    for(let chunk of raw.split('&&')){
+      chunk=chunk.trim();
+      let redirect=null, redirFile=null;
+      const m=chunk.match(/^(.*?)(>>|>)\s*(\S+)\s*$/);
+      if(m){ chunk=m[1]; redirect=m[2]; redirFile=m[3]; }
+      let stdin=null, res=null;
+      for(const seg of chunk.split('|')){
+        res=runSegment(seg.trim(), stdin);
+        stdin=lsPlain(res.out);
+      }
+      cmd=res.cmd; args=res.args; output=res.out;
+      if(redirect){
+        const abs=resolvePath(redirFile);
+        const {parent,name}=parentOf(abs);
+        if(!parent||parent.type!=='dir') throw 'bash: '+redirFile+': Нет такого файла или каталога';
+        const plain=lsPlain(output);
+        const text=plain+(plain?'\n':'');
+        const existing=parent.children[name];
+        if(redirect==='>'||!existing) parent.children[name]=file(text);
+        else existing.content+=text;
+        output='';
+      }
+      /* спец-рендер ls c маркерами */
+      if(output.includes('\x00')){
+        const html=output.split('\x00').map(n=>{
+          if(n.startsWith('<DIR>')) return '<span class="c-dir">'+esc(n.slice(5))+'/</span>';
+          if(n.startsWith('<EXE>')) return '<span class="c-exec">'+esc(n.slice(5))+'*</span>';
+          return esc(n.slice(3));
+        }).join('  ');
+        printLine(html);
+        output=output.split('\x00').map(n=>n.replace(/^<(DIR|EXE|F)>/,'')).join('  ');
+      } else {
+        printText(output);
+      }
+    }
+  }catch(e){
+    output=String(e); ok=false;
+    printText(output,'c-err');
+  }
+  lastResult={cmd,args,raw,output,ok};
+  refreshPrompt();
+  checkCurrentTask();
+}
+
+/* ================================================================
+   TAB-АВТОДОПОЛНЕНИЕ
+   ================================================================ */
+function complete(){
+  const val=inputEl.value;
+  const upToCursor=val.slice(0,inputEl.selectionStart);
+  const after=val.slice(inputEl.selectionStart);
+  const parts=upToCursor.split(' ');
+  const word=parts[parts.length-1];
+  let candidates=[];
+  let prefixLen=word.length;
+
+  if(parts.length===1){
+    candidates=Object.keys(COMMANDS).filter(c=>c.startsWith(word));
+  } else {
+    /* дополняем путь */
+    const slash=word.lastIndexOf('/');
+    const dirPart=slash>=0?word.slice(0,slash+1):'';
+    const namePart=slash>=0?word.slice(slash+1):word;
+    const dirAbs=resolvePath(dirPart||'.');
+    const node=getNode(dirAbs);
+    if(node&&node.type==='dir'){
+      candidates=Object.keys(node.children)
+        .filter(n=>n.startsWith(namePart)&&(namePart.startsWith('.')||!n.startsWith('.')))
+        .map(n=>dirPart+n+(node.children[n].type==='dir'?'/':''));
+    }
+    prefixLen=word.length;
+  }
+  if(!candidates.length) return;
+  if(candidates.length===1){
+    const add=candidates[0]+(parts.length===1?' ':'');
+    parts[parts.length-1]=add;
+    inputEl.value=parts.join(' ')+after;
+    const pos=parts.join(' ').length;
+    inputEl.setSelectionRange(pos,pos);
+    return;
+  }
+  /* общий префикс */
+  let common=candidates[0];
+  for(const c of candidates) { let i=0; while(i<common.length&&i<c.length&&common[i]===c[i]) i++; common=common.slice(0,i); }
+  if(common.length>word.length){
+    parts[parts.length-1]=common;
+    inputEl.value=parts.join(' ')+after;
+    const pos=parts.join(' ').length;
+    inputEl.setSelectionRange(pos,pos);
+  } else {
+    printLine(promptHtml()+' '+esc(val));
+    printLine(candidates.map(c=>'<span class="'+(c.endsWith('/')?'c-dir':'')+'">'+esc(c)+'</span>').join('  '),'c-dim');
+  }
+}
+
+inputEl.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){ const v=inputEl.value; inputEl.value=''; execute(v); }
+  else if(e.key==='Tab'){ e.preventDefault(); complete(); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); if(histIdx>0){histIdx--; inputEl.value=history[histIdx]; setTimeout(()=>inputEl.setSelectionRange(999,999));} }
+  else if(e.key==='ArrowDown'){ e.preventDefault(); if(histIdx<history.length-1){histIdx++; inputEl.value=history[histIdx];} else {histIdx=history.length; inputEl.value='';} }
+  else if(e.key==='l'&&e.ctrlKey){ e.preventDefault(); COMMANDS.clear(); }
+});
+
+/* ================================================================
+   ЗАДАНИЯ
+   ================================================================ */
+const LEVELS=['🌱 Начинающий','🔧 Средний','🚀 Продвинутый'];
+function ensureFile(path,content){
+  const abs=resolvePath(path.replace('~',HOME));
+  if(!getNode(abs)){ const {parent,name}=parentOf(abs); if(parent) parent.children[name]=file(content||''); }
+}
+function ensureDir(path){
+  const abs=path.replace('~',HOME);
+  let cur=FS;
+  for(const part of abs.split('/').filter(Boolean)){
+    if(!(part in cur.children)) cur.children[part]=dir();
+    cur=cur.children[part];
+  }
+}
+const N=p=>getNode(p.replace('~',HOME)); // helper для check
+
+const TASKS=[
+/* ---------- УРОВЕНЬ 0: НОВИЧОК ---------- */
+{lvl:0,title:'Кто я?',
+ text:'Терминал всегда работает от имени какого-то <b>пользователя</b>. Узнай, под каким именем ты вошёл в систему.',
+ hint:'Команда состоит из английских слов «who am i» (кто я), написанных слитно.',
+ sol:'whoami',
+ check:r=>r.cmd==='whoami'&&r.ok},
+
+{lvl:0,title:'Где я?',
+ text:'В терминале ты всегда находишься <b>внутри какой-то папки</b> (каталога). Узнай полный путь к папке, в которой ты сейчас стоишь.',
+ hint:'Команда — сокращение от «print working directory» (напечатай рабочий каталог). Три буквы.',
+ sol:'pwd',
+ check:r=>r.cmd==='pwd'&&r.ok},
+
+{lvl:0,title:'Что вокруг?',
+ text:'Посмотри, какие файлы и папки лежат в твоей домашней папке.',
+ hint:'Команда — сокращение от английского «list» (список). Две буквы.',
+ sol:'ls',
+ check:r=>r.cmd==='ls'&&r.ok},
+
+{lvl:0,title:'Заходим в папку',
+ text:'Перейди в папку <code>Документы</code>.',
+ hint:'Команда «change directory» — <code>cd</code>, а дальше имя папки. Начни набирать <code>cd Док</code> и нажми <b>Tab</b> — терминал допишет сам!',
+ sol:'cd Документы',
+ check:r=>CWD===HOME+'/Документы'},
+
+{lvl:0,title:'Смотрим, что внутри',
+ text:'Ты в папке <code>Документы</code>. Посмотри её содержимое.',
+ hint:'Та же команда, что и раньше — список файлов.',
+ sol:'ls',
+ setup:()=>{ if(CWD!==HOME+'/Документы') CWD=HOME+'/Документы'; refreshPrompt(); },
+ check:r=>r.cmd==='ls'&&r.ok&&CWD===HOME+'/Документы'},
+
+{lvl:0,title:'Шаг назад',
+ text:'Поднимись на один уровень вверх — обратно в домашнюю папку.',
+ hint:'Две точки <code>..</code> означают «папка выше». Используй их вместе с командой перехода.',
+ sol:'cd ..',
+ check:r=>r.cmd==='cd'&&CWD===HOME},
+
+{lvl:0,title:'Путешествие в корень',
+ text:'Перейди в самый <b>корень</b> файловой системы — папку <code>/</code> — и посмотри, что там лежит. (Понадобятся две команды.)',
+ hint:'Сначала <code>cd /</code>, потом команда-список. В корне живут системные папки: etc, home, usr, var…',
+ sol:'cd /  (затем)  ls',
+ check:r=>r.cmd==='ls'&&r.ok&&CWD==='/'},
+
+{lvl:0,title:'Домой!',
+ text:'Из любого места можно мгновенно вернуться в домашнюю папку. Сделай это одной короткой командой.',
+ hint:'Просто <code>cd</code> без аргументов. Или <code>cd ~</code> — волна означает «дом».',
+ sol:'cd',
+ check:r=>r.cmd==='cd'&&CWD===HOME},
+
+{lvl:0,title:'Подробный список',
+ text:'Посмотри содержимое домашней папки <b>подробно</b>: с правами доступа и размерами файлов.',
+ hint:'У команды <code>ls</code> есть ключ <code>-l</code> (маленькая L, от «long»).',
+ sol:'ls -l',
+ check:r=>r.cmd==='ls'&&r.args.some(a=>a.includes('l'))&&r.ok},
+
+{lvl:0,title:'Скрытые файлы',
+ text:'В Линуксе файлы, чьё имя начинается с точки, — <b>скрытые</b>. В твоей домашней папке есть один такой. Найди его с помощью специального ключа, а затем прочитай.',
+ hint:'Ключ <code>-a</code> (от «all») показывает всё. А читать файлы умеет <code>cat</code>.',
+ sol:'ls -a  (затем)  cat .секретный_файл',
+ check:r=>r.cmd==='cat'&&r.raw.includes('.секретный_файл')&&r.ok},
+
+/* ---------- УРОВЕНЬ 1: ФАЙЛЫ И ПАПКИ ---------- */
+{lvl:0,title:'Читаем файл',
+ text:'В папке <code>Документы</code> лежит файл <code>записка.txt</code>. Прочитай его, <b>не заходя</b> в папку — укажи путь через косую черту.',
+ hint:'<code>cat Документы/записка.txt</code> — и не забудь про Tab, он дописывает и пути!',
+ sol:'cat Документы/записка.txt',
+ setup:()=>{ CWD=HOME; refreshPrompt(); ensureFile('~/Документы/записка.txt','Привет! Это твоя первая записка.\nТерминал — это просто.\n'); },
+ check:r=>r.cmd==='cat'&&r.raw.includes('записка.txt')&&r.raw.includes('/')&&r.ok},
+
+{lvl:0,title:'Первая папка',
+ text:'Создай в домашней папке новую папку с именем <code>отчёты</code>.',
+ hint:'Команда «make directory» — <code>mkdir</code>.',
+ sol:'mkdir отчёты',
+ setup:()=>{ CWD=HOME; refreshPrompt(); },
+ check:r=>{const n=N('~/отчёты');return n&&n.type==='dir';}},
+
+{lvl:0,title:'Первый файл',
+ text:'Создай пустой файл <code>январь.txt</code> внутри папки <code>отчёты</code>.',
+ hint:'<code>touch</code> создаёт пустой файл. Путь: <code>отчёты/январь.txt</code>.',
+ sol:'touch отчёты/январь.txt',
+ setup:()=>ensureDir('~/отчёты'),
+ check:r=>{const n=N('~/отчёты/январь.txt');return n&&n.type==='file';}},
+
+{lvl:0,title:'Записываем текст в файл',
+ text:'Запиши строку <code>Выручка выросла</code> в файл <code>отчёты/январь.txt</code>. Знак <code>&gt;</code> отправляет текст команды в файл.',
+ hint:'<code>echo "Выручка выросла" &gt; отчёты/январь.txt</code>',
+ sol:'echo "Выручка выросла" > отчёты/январь.txt',
+ setup:()=>{ensureDir('~/отчёты');ensureFile('~/отчёты/январь.txt');},
+ check:r=>{const n=N('~/отчёты/январь.txt');return n&&n.type==='file'&&n.content.includes('Выручка выросла');}},
+
+{lvl:0,title:'Проверяем, что записалось',
+ text:'Прочитай файл <code>отчёты/январь.txt</code> и убедись, что текст внутри.',
+ hint:'Снова <code>cat</code>.',
+ sol:'cat отчёты/январь.txt',
+ setup:()=>{ensureDir('~/отчёты');ensureFile('~/отчёты/январь.txt','Выручка выросла\n');},
+ check:r=>r.cmd==='cat'&&r.raw.includes('январь')&&r.ok},
+
+{lvl:0,title:'Копируем файл',
+ text:'Скопируй файл <code>отчёты/январь.txt</code> в файл <code>отчёты/февраль.txt</code>.',
+ hint:'Команда «copy»: <code>cp что куда</code>.',
+ sol:'cp отчёты/январь.txt отчёты/февраль.txt',
+ setup:()=>{ensureDir('~/отчёты');ensureFile('~/отчёты/январь.txt','Выручка выросла\n');},
+ check:r=>{const n=N('~/отчёты/февраль.txt');return n&&n.type==='file';}},
+
+{lvl:0,title:'Переименовываем',
+ text:'Файл <code>рабочий_файл.txt</code> в домашней папке назван неудачно. Переименуй его в <code>план.txt</code>.',
+ hint:'В Линуксе переименование — это перемещение: <code>mv старое_имя новое_имя</code>.',
+ sol:'mv рабочий_файл.txt план.txt',
+ setup:()=>{ CWD=HOME; refreshPrompt(); ensureFile('~/рабочий_файл.txt','строка один\nстрока два\nстрока три\n'); },
+ check:r=>{return !N('~/рабочий_файл.txt')&&N('~/план.txt');}},
+
+{lvl:0,title:'Перемещаем в папку',
+ text:'Перемести файл <code>план.txt</code> в папку <code>Документы</code>.',
+ hint:'<code>mv план.txt Документы/</code> — если «куда» — это папка, файл переедет внутрь неё.',
+ sol:'mv план.txt Документы/',
+ setup:()=>{ CWD=HOME; refreshPrompt(); ensureFile('~/план.txt','строка один\n'); },
+ check:r=>{return !N('~/план.txt')&&N('~/Документы/план.txt');}},
+
+{lvl:0,title:'Удаляем файл',
+ text:'В папке <code>Загрузки</code> завалялся ненужный файл <code>архив.zip</code>. Удали его.',
+ hint:'Команда «remove»: <code>rm Загрузки/архив.zip</code>. Осторожно: в Линуксе нет корзины!',
+ sol:'rm Загрузки/архив.zip',
+ setup:()=>{ CWD=HOME; refreshPrompt(); ensureFile('~/Загрузки/архив.zip','[двоичные данные]\n'); },
+ check:r=>!N('~/Загрузки/архив.zip')},
+
+{lvl:0,title:'Удаляем пустую папку',
+ text:'Папка <code>Музыка</code> пуста и не нужна. Удали её командой для <b>пустых</b> папок.',
+ hint:'<code>rmdir</code> — remove directory. Работает только с пустыми папками.',
+ sol:'rmdir Музыка',
+ setup:()=>{ CWD=HOME; refreshPrompt(); ensureDir('~/Музыка'); const n=N('~/Музыка'); if(n) n.children={}; },
+ check:r=>!N('~/Музыка')},
+
+/* ---------- УРОВЕНЬ 2: УВЕРЕННЫЙ ---------- */
+{lvl:0,title:'Цепочка папок одной командой',
+ text:'Создай сразу вложенную структуру: <code>проекты/сайт/картинки</code> — одной командой.',
+ hint:'У <code>mkdir</code> есть ключ <code>-p</code> (parents) — создаёт всю цепочку сразу.',
+ sol:'mkdir -p проекты/сайт/картинки',
+ setup:()=>{ CWD=HOME; refreshPrompt(); },
+ check:r=>{const n=N('~/проекты/сайт/картинки');return n&&n.type==='dir';}},
+
+{lvl:0,title:'Дописываем в конец файла',
+ text:'В файл <code>журнал.log</code> допиши строку <code>проверка связи</code>, <b>не стирая</b> старое содержимое.',
+ hint:'Одинарный <code>&gt;</code> перезаписывает, а двойной <code>&gt;&gt;</code> — дописывает в конец.',
+ sol:'echo "проверка связи" >> журнал.log',
+ setup:()=>{ CWD=HOME; refreshPrompt(); ensureFile('~/журнал.log','2026-01-10 система запущена\n'); },
+ check:r=>{const n=N('~/журнал.log');return n&&n.content.includes('проверка связи')&&n.content.includes('система запущена');}},
+
+{lvl:0,title:'Копируем папку целиком',
+ text:'Скопируй папку <code>Документы</code> со всем содержимым в новую папку <code>Документы_копия</code>.',
+ hint:'Для папок команде <code>cp</code> нужен ключ <code>-r</code> (recursive — рекурсивно, со всем содержимым).',
+ sol:'cp -r Документы Документы_копия',
+ setup:()=>{ CWD=HOME; refreshPrompt(); },
+ check:r=>{const n=N('~/Документы_копия');return n&&n.type==='dir';}},
+
+{lvl:0,title:'Удаляем папку с содержимым',
+ text:'Копия больше не нужна. Удали папку <code>Документы_копия</code> вместе со всем содержимым.',
+ hint:'<code>rm</code> с ключом <code>-r</code>. Дважды проверь имя — эта команда не спрашивает подтверждения!',
+ sol:'rm -r Документы_копия',
+ setup:()=>{ CWD=HOME; refreshPrompt(); ensureDir('~/Документы_копия'); },
+ check:r=>!N('~/Документы_копия')},
+
+{lvl:0,title:'Начало большого файла',
+ text:'Файл <code>журнал.log</code> длинный. Посмотри только <b>первые 3 строки</b>.',
+ hint:'<code>head -n 3 журнал.log</code> («head» — голова).',
+ sol:'head -n 3 журнал.log',
+ setup:()=>{ CWD=HOME; refreshPrompt(); ensureFile('~/журнал.log','2026-01-10 система запущена\n2026-01-11 вход пользователя student\n2026-01-12 ОШИБКА: диск переполнен\n2026-01-13 диск очищен\n'); },
+ check:r=>r.cmd==='head'&&r.raw.includes('журнал')&&r.ok},
+
+{lvl:0,title:'Конец большого файла',
+ text:'А теперь посмотри <b>последние 2 строки</b> файла <code>журнал.log</code>. Так обычно смотрят свежие записи в логах.',
+ hint:'<code>tail -n 2 журнал.log</code> («tail» — хвост).',
+ sol:'tail -n 2 журнал.log',
+ check:r=>r.cmd==='tail'&&r.raw.includes('журнал')&&r.ok},
+
+{lvl:0,title:'Считаем строки',
+ text:'Сколько строк в файле <code>журнал.log</code>? Пусть терминал посчитает сам.',
+ hint:'<code>wc -l файл</code> («word count», ключ -l считает строки — lines).',
+ sol:'wc -l журнал.log',
+ check:r=>r.cmd==='wc'&&r.raw.includes('журнал')&&r.ok},
+
+/* ---------- УРОВЕНЬ 3: ПРОДВИНУТЫЙ ---------- */
+{lvl:0,title:'Поиск файлов по имени',
+ text:'Найди <b>все файлы с расширением .txt</b> в домашней папке и её подпапках.',
+ hint:'<code>find . -name "*.txt"</code> — точка значит «искать отсюда», звёздочка — «любое имя».',
+ sol:'find . -name "*.txt"',
+ setup:()=>{ CWD=HOME; refreshPrompt(); },
+ check:r=>r.cmd==='find'&&r.raw.includes('-name')&&r.raw.includes('.txt')&&r.ok},
+
+{lvl:0,title:'Поиск текста внутри файла',
+ text:'В файле <code>журнал.log</code> где-то есть строка со словом <code>ОШИБКА</code>. Найди её, не читая файл целиком.',
+ hint:'<code>grep "ОШИБКА" журнал.log</code> — grep ищет строки с нужным текстом.',
+ sol:'grep "ОШИБКА" журнал.log',
+ setup:()=>{ CWD=HOME; refreshPrompt(); ensureFile('~/журнал.log','2026-01-11 вход\n2026-01-12 ОШИБКА: диск переполнен\n2026-01-13 диск очищен\n'); },
+ check:r=>r.cmd==='grep'&&r.raw.includes('ОШИБКА')&&r.ok&&r.output.includes('ОШИБКА')},
+
+{lvl:0,title:'Права на запуск',
+ text:'В домашней папке лежит <code>скрипт.sh</code>. Попробуй запустить его: <code>./скрипт.sh</code> — получишь отказ. Сделай файл <b>исполняемым</b> и запусти снова.',
+ hint:'<code>chmod +x скрипт.sh</code> добавляет право на запуск, потом <code>./скрипт.sh</code>.',
+ sol:'chmod +x скрипт.sh  (затем)  ./скрипт.sh',
+ setup:()=>{ CWD=HOME; refreshPrompt(); ensureFile('~/скрипт.sh','#!/bin/bash\necho "Привет из скрипта!"\n'); const n=N('~/скрипт.sh'); if(n) n.mode='rw-r--r--'; },
+ check:r=>r.raw.startsWith('./скрипт.sh')&&r.ok},
+
+{lvl:0,title:'Проверяем права глазами',
+ text:'Посмотри подробный список файлов и найди <code>скрипт.sh</code> — в начале строки должна появиться буква <code>x</code> (право на исполнение: <code>rwxr-xr-x</code>).',
+ hint:'<code>ls -l</code> — и смотри на первую колонку.',
+ sol:'ls -l',
+ check:r=>r.cmd==='ls'&&r.args.some(a=>a.includes('l'))&&r.ok},
+
+{lvl:0,title:'История твоих команд',
+ text:'Терминал помнит всё, что ты вводил. Посмотри свою историю команд. (Кстати, стрелка ↑ листает её прямо в строке ввода.)',
+ hint:'Команда так и называется — <code>history</code>.',
+ sol:'history',
+ check:r=>r.cmd==='history'&&r.ok},
+
+{lvl:0,title:'Секрет в системных файлах',
+ text:'Узнай точную версию операционной системы: прочитай файл <code>os-release</code>, который лежит в системной папке <code>/etc</code>.',
+ hint:'Полный путь начинается с косой черты: <code>cat /etc/os-release</code>.',
+ sol:'cat /etc/os-release',
+ check:r=>r.cmd==='cat'&&r.raw.includes('/etc/os-release')&&r.ok},
+
+{lvl:0,title:'Финальный экзамен 🎓',
+ text:'Собери всё вместе! Создай структуру <code>экзамен/итог</code> (одной командой), запиши в файл <code>экзамен/итог/готово.txt</code> строку <code>я умею линукс</code> и проверь содержимое файла командой чтения.',
+ hint:'Три шага: <code>mkdir -p экзамен/итог</code> → <code>echo "я умею линукс" &gt; экзамен/итог/готово.txt</code> → <code>cat экзамен/итог/готово.txt</code>.',
+ sol:'mkdir -p экзамен/итог\necho "я умею линукс" > экзамен/итог/готово.txt\ncat экзамен/итог/готово.txt',
+ setup:()=>{ CWD=HOME; refreshPrompt(); },
+ check:r=>{const n=N('~/экзамен/итог/готово.txt');return n&&n.content.includes('я умею линукс')&&r.cmd==='cat'&&r.ok;}},
+
+/* ---------- УРОВЕНЬ 1: СРЕДНИЙ ---------- */
+{lvl:1,title:'Сортировка строк',
+ text:'В домашней папке появился файл <code>имена.txt</code> — список имён вперемешку. Выведи его содержимое <b>по алфавиту</b> (сам файл при этом не меняется).',
+ hint:'<code>sort имена.txt</code>',
+ sol:'sort имена.txt',
+ setup:()=>{ CWD=HOME; refreshPrompt(); ensureFile('~/имена.txt','Сергей\nАнна\nДима\nБорис\nАнна\nДима\n'); },
+ check:r=>r.cmd==='sort'&&r.raw.includes('имена')&&r.ok},
+
+{lvl:1,title:'Конвейер: считаем файлы',
+ text:'Знак <code>|</code> (пайп) передаёт вывод одной команды на вход другой. Посчитай <b>одной строкой</b>, сколько объектов в домашней папке: список файлов → счётчик строк.',
+ hint:'<code>ls | wc -l</code> — вывод ls уходит прямо в wc.',
+ sol:'ls | wc -l',
+ setup:()=>{ CWD=HOME; refreshPrompt(); },
+ check:r=>r.raw.includes('ls')&&r.raw.includes('|')&&r.raw.includes('wc')&&r.ok},
+
+{lvl:1,title:'Конвейер: фильтруем журнал',
+ text:'Выведи из файла <code>журнал.log</code> только строки со словом <code>вход</code> — конвейером: сначала показать файл, потом отфильтровать.',
+ hint:'<code>cat журнал.log | grep "вход"</code>',
+ sol:'cat журнал.log | grep "вход"',
+ setup:()=>{ CWD=HOME; refreshPrompt(); ensureFile('~/журнал.log','2026-01-10 система запущена\n2026-01-11 вход пользователя student\n2026-01-12 ОШИБКА: диск переполнен\n2026-01-14 вход пользователя student\n2026-01-15 ОШИБКА: нет сети\n2026-01-16 система работает стабильно\n'); },
+ check:r=>r.raw.includes('|')&&r.raw.includes('grep')&&r.ok&&r.output.includes('вход')},
+
+{lvl:1,title:'Считаем ошибки',
+ text:'Сколько строк с <code>ОШИБКА</code> в файле <code>журнал.log</code>? Пусть конвейер посчитает сам — без чтения глазами.',
+ hint:'<code>grep "ОШИБКА" журнал.log | wc -l</code>',
+ sol:'grep "ОШИБКА" журнал.log | wc -l',
+ check:r=>r.raw.includes('grep')&&r.raw.includes('|')&&r.raw.includes('wc')&&r.ok},
+
+{lvl:1,title:'Шаблон *: только .txt',
+ text:'Звёздочка <code>*</code> в имени означает «что угодно». Покажи в домашней папке <b>только</b> файлы с расширением <code>.txt</code>.',
+ hint:'<code>ls *.txt</code>',
+ sol:'ls *.txt',
+ setup:()=>{ CWD=HOME; refreshPrompt(); ensureFile('~/имена.txt','Анна\n'); ensureFile('~/заметка.txt','не забыть про линукс\n'); },
+ check:r=>r.cmd==='ls'&&r.raw.includes('*.txt')&&r.ok},
+
+{lvl:1,title:'Чистим мусор по шаблону',
+ text:'В домашней папке завелись временные файлы с расширением <code>.tmp</code>. Удали их все <b>одной командой</b>.',
+ hint:'<code>rm *.tmp</code> — шаблон подставит все подходящие имена.',
+ sol:'rm *.tmp',
+ setup:()=>{ CWD=HOME; refreshPrompt(); ensureFile('~/врем1.tmp','мусор\n'); ensureFile('~/врем2.tmp','мусор\n'); ensureFile('~/кэш.tmp','мусор\n'); },
+ check:r=>!Object.keys(N('~').children).some(n=>n.endsWith('.tmp'))},
+
+{lvl:1,title:'Переменные окружения',
+ text:'Система хранит настройки в <b>переменных окружения</b>. Выведи имя текущего пользователя из переменной <code>$USER</code>.',
+ hint:'<code>echo $USER</code> — знак $ подставляет значение переменной.',
+ sol:'echo $USER',
+ check:r=>r.cmd==='echo'&&r.raw.includes('$USER')&&r.ok&&r.output.includes('student')},
+
+{lvl:1,title:'Своя переменная',
+ text:'Создай переменную <code>NAME</code> со своим именем и выведи её. Две команды — а лучше одной строкой через <code>&amp;&amp;</code>.',
+ hint:'<code>export NAME="Дима" && echo $NAME</code>',
+ sol:'export NAME="Дима" && echo $NAME',
+ check:r=>r.raw.includes('$NAME')&&r.ok&&r.output.trim()!==''&&VARS.NAME!==undefined},
+
+{lvl:1,title:'Все переменные разом',
+ text:'Посмотри полный список переменных окружения — найди в нём свою <code>NAME</code>.',
+ hint:'Команда из трёх букв: <code>env</code>.',
+ sol:'env',
+ setup:()=>{ if(VARS.NAME===undefined) VARS.NAME='Друг'; },
+ check:r=>r.cmd==='env'&&r.ok},
+
+{lvl:1,title:'Где живут команды',
+ text:'Каждая команда — это программа-файл на диске. Узнай, где лежит программа <code>ls</code>.',
+ hint:'<code>which ls</code>',
+ sol:'which ls',
+ check:r=>r.cmd==='which'&&r.ok},
+
+{lvl:1,title:'Конвейер: убираем повторы',
+ text:'В файле <code>имена.txt</code> есть дубликаты. Выведи список <b>без повторов</b>: сначала отсортируй, потом убери одинаковые соседние строки.',
+ hint:'<code>sort имена.txt | uniq</code> — uniq убирает только соседние повторы, поэтому сперва sort.',
+ sol:'sort имена.txt | uniq',
+ setup:()=>{ CWD=HOME; refreshPrompt(); ensureFile('~/имена.txt','Сергей\nАнна\nДима\nБорис\nАнна\nДима\n'); },
+ check:r=>r.raw.includes('sort')&&r.raw.includes('|')&&r.raw.includes('uniq')&&r.ok},
+
+/* ---------- УРОВЕНЬ 2: ПРОДВИНУТЫЙ ---------- */
+{lvl:2,title:'Права root: sudo',
+ text:'Попробуй прочитать файл <code>/etc/shadow</code> (там хэши паролей) — получишь отказ. Тогда прочитай его <b>от имени администратора</b>.',
+ hint:'Приставка <code>sudo</code> выполняет команду от root: <code>sudo cat /etc/shadow</code>.',
+ sol:'cat /etc/shadow  (откажет, затем)  sudo cat /etc/shadow',
+ check:r=>r.raw.startsWith('sudo')&&r.raw.includes('shadow')&&r.ok},
+
+{lvl:2,title:'Права числами',
+ text:'Права можно задавать числами: <code>7</code>=rwx, <code>5</code>=r-x, <code>4</code>=r--. Дай файлу <code>скрипт.sh</code> права <code>755</code> — владельцу всё, остальным читать и запускать.',
+ hint:'<code>chmod 755 скрипт.sh</code>',
+ sol:'chmod 755 скрипт.sh',
+ setup:()=>{ CWD=HOME; refreshPrompt(); ensureFile('~/скрипт.sh','#!/bin/bash\necho "Привет из скрипта!"\n'); const n=N('~/скрипт.sh'); if(n) n.mode='rw-r--r--'; },
+ check:r=>{const n=N('~/скрипт.sh');return n&&n.mode==='rwxr-xr-x'&&r.raw.includes('755');}},
+
+{lvl:2,title:'Личный файл',
+ text:'Создай файл <code>личное.txt</code> и закрой его от посторонних: права <code>600</code> — читать и писать может только владелец.',
+ hint:'<code>touch личное.txt && chmod 600 личное.txt</code>',
+ sol:'touch личное.txt && chmod 600 личное.txt',
+ setup:()=>{ CWD=HOME; refreshPrompt(); },
+ check:r=>{const n=N('~/личное.txt');return n&&n.mode==='rw-------';}},
+
+{lvl:2,title:'Список процессов',
+ text:'Всё, что запущено в системе, — это <b>процессы</b>. Посмотри их список и запомни номер (PID) зависшего браузера.',
+ hint:'<code>ps</code>',
+ sol:'ps',
+ check:r=>r.cmd==='ps'&&r.ok},
+
+{lvl:2,title:'Убиваем зависший процесс',
+ text:'Браузер завис и не отвечает. Заверши его процесс по номеру PID (номер смотри в <code>ps</code>).',
+ hint:'<code>kill 1024</code>',
+ sol:'kill 1024',
+ setup:()=>{ if(!PROCS.find(p=>p.pid===1024)) PROCS.push({pid:1024,cmd:'браузер (завис, не отвечает)'}); },
+ check:r=>!PROCS.find(p=>p.pid===1024)},
+
+{lvl:2,title:'Упаковываем архив',
+ text:'Упакуй папку <code>Документы</code> в архив <code>документы.tar.gz</code>.',
+ hint:'<code>tar -czf документы.tar.gz Документы</code> (c — создать, z — сжать, f — в файл).',
+ sol:'tar -czf документы.tar.gz Документы',
+ setup:()=>{ CWD=HOME; refreshPrompt(); ensureDir('~/Документы'); },
+ check:r=>{const n=N('~/документы.tar.gz');return n&&n.archive;}},
+
+{lvl:2,title:'Распаковываем архив',
+ text:'Тебе прислали архив <code>бэкап.tar.gz</code>. Распакуй его и посмотри, что появилось.',
+ hint:'<code>tar -xzf бэкап.tar.gz</code> (x — извлечь), потом <code>ls</code>.',
+ sol:'tar -xzf бэкап.tar.gz',
+ setup:()=>{ CWD=HOME; refreshPrompt(); const h=N('~'); if(!h.children['бэкап.tar.gz']){ const f=file('[архив tar.gz]\n'); f.archive={name:'восстановленное',node:{type:'dir',children:{'важное.txt':{type:'file',content:'фух, всё на месте\n',mode:'rw-r--r--'}}}}; h.children['бэкап.tar.gz']=f; } },
+ check:r=>!!N('~/восстановленное')},
+
+{lvl:2,title:'Ищем только папки',
+ text:'Команда <code>find</code> умеет фильтровать по типу. Найди в домашней папке <b>только каталоги</b>.',
+ hint:'<code>find . -type d</code> (d — directory).',
+ sol:'find . -type d',
+ setup:()=>{ CWD=HOME; refreshPrompt(); },
+ check:r=>r.cmd==='find'&&r.raw.replace(/\s+/g,' ').includes('-type d')&&r.ok},
+
+{lvl:2,title:'Команды цепочкой: &&',
+ text:'Оператор <code>&amp;&amp;</code> запускает следующую команду, только если предыдущая успешна. Одной строкой: создай папку <code>тест</code>, зайди в неё и покажи путь.',
+ hint:'<code>mkdir тест && cd тест && pwd</code>',
+ sol:'mkdir тест && cd тест && pwd',
+ setup:()=>{ CWD=HOME; refreshPrompt(); delete N('~').children['тест']; },
+ check:r=>r.raw.includes('&&')&&CWD===HOME+'/тест'},
+
+{lvl:2,title:'Финал 2.0: боевой конвейер 🎓',
+ text:'Всё вместе, одной строкой: посчитай количество строк с <code>ОШИБКА</code> в <code>журнал.log</code>, запиши результат в файл <code>ошибки.txt</code> и сразу выведи этот файл.',
+ hint:'<code>grep "ОШИБКА" журнал.log | wc -l > ошибки.txt && cat ошибки.txt</code>',
+ sol:'grep "ОШИБКА" журнал.log | wc -l > ошибки.txt && cat ошибки.txt',
+ setup:()=>{ CWD=HOME; refreshPrompt(); ensureFile('~/журнал.log','2026-01-11 вход\n2026-01-12 ОШИБКА: диск переполнен\n2026-01-15 ОШИБКА: нет сети\n2026-01-16 стабильно\n'); delete N('~').children['ошибки.txt']; },
+ check:r=>{const n=N('~/ошибки.txt');return n&&r.cmd==='cat'&&r.raw.includes('|')&&r.ok;}},
+];
+
+/* ================================================================
+   ДВИЖОК ЗАДАНИЙ
+   ================================================================ */
+let doneSet=new Set(JSON.parse(localStorage.getItem('lt_done')||'[]'));
+let currentIdx=parseInt(localStorage.getItem('lt_current')||'0',10);
+if(currentIdx>=TASKS.length) currentIdx=TASKS.length-1;
+let taskCompleted=false;
+
+function saveProgress(){
+  localStorage.setItem('lt_done',JSON.stringify([...doneSet]));
+  localStorage.setItem('lt_current',String(currentIdx));
+}
+function renderTask(){
+  const t=TASKS[currentIdx];
+  taskCompleted=doneSet.has(currentIdx);
+  document.getElementById('task-level').textContent=LEVELS[t.lvl];
+  document.getElementById('task-level').className='level-badge lvl-'+t.lvl;
+  document.getElementById('task-num').textContent='Задание '+(currentIdx+1)+' из '+TASKS.length;
+  document.getElementById('task-title').textContent=t.title;
+  document.getElementById('task-text').innerHTML=t.text;
+  document.getElementById('hint-box').style.display='none';
+  document.getElementById('hint-box').innerHTML='💡 '+t.hint;
+  document.getElementById('solution-box').style.display='none';
+  document.getElementById('solution-box').innerHTML='Решение:'+t.sol.split('\n').map(s=>'<span class="sol-cmd">'+esc(s)+'</span>').join('');
+  document.getElementById('done-banner').style.display=taskCompleted?'block':'none';
+  document.getElementById('all-done').style.display='none';
+  if(t.setup) try{t.setup();}catch(e){}
+  renderTaskList(); renderProgress();
+}
+function renderProgress(){
+  const done=doneSet.size;
+  document.getElementById('progress-label').textContent=done+' / '+TASKS.length;
+  document.getElementById('progress-fill').style.width=(done/TASKS.length*100)+'%';
+}
+function renderTaskList(){
+  const el=document.getElementById('task-list');
+  let html='';
+  let lastLvl=-1;
+  TASKS.forEach((t,i)=>{
+    if(t.lvl!==lastLvl){ html+='<h3>'+LEVELS[t.lvl]+'</h3>'; lastLvl=t.lvl; }
+    const cls='tl-item'+(doneSet.has(i)?' done':'')+(i===currentIdx?' current':'');
+    html+='<div class="'+cls+'" onclick="goToTask('+i+')"><span class="tl-check">'+(doneSet.has(i)?'✅':(i===currentIdx?'▶':'○'))+'</span>'+(i+1)+'. '+esc(t.title)+'</div>';
+  });
+  el.innerHTML=html;
+}
+function goToTask(i){ currentIdx=i; saveProgress(); renderTask(); inputEl.focus(); }
+function nextTask(){
+  if(currentIdx<TASKS.length-1){ goToTask(currentIdx+1); }
+  else {
+    document.getElementById('done-banner').style.display='none';
+    document.getElementById('all-done').style.display='block';
+  }
+}
+function checkCurrentTask(){
+  if(taskCompleted) return;
+  const t=TASKS[currentIdx];
+  let ok=false;
+  try{ ok=!!t.check(lastResult); }catch(e){ ok=false; }
+  if(ok){
+    taskCompleted=true;
+    doneSet.add(currentIdx);
+    saveProgress();
+    printLine('<span class="c-ok">✔ Задание «'+esc(t.title)+'» выполнено!</span>');
+    document.getElementById('done-banner').style.display='block';
+    renderTaskList(); renderProgress();
+    if(doneSet.size===TASKS.length){
+      printLine('<span class="c-warn">🏆 ВСЕ ЗАДАНИЯ ПРОЙДЕНЫ! Ты — уверенный пользователь терминала.</span>');
+    }
+  }
+}
+function showHint(){ document.getElementById('hint-box').style.display='block'; }
+function showSolution(){ document.getElementById('solution-box').style.display='block'; }
+function resetAll(){
+  if(!confirm('Сбросить весь прогресс и файловую систему?')) return;
+  localStorage.removeItem('lt_done'); localStorage.removeItem('lt_current');
+  location.reload();
+}
+
+/* ================================================================
+   ПОЖЕЛАНИЯ (обратная связь → JSON)
+   ================================================================ */
+const APP_VERSION='2.0';
+let wishes=JSON.parse(localStorage.getItem('lt_wishes')||'[]');
+function saveWishes(){ localStorage.setItem('lt_wishes',JSON.stringify(wishes)); renderWishCount(); }
+function renderWishCount(){
+  const b=document.getElementById('wish-count');
+  b.style.display=wishes.length?'inline-block':'none';
+  b.textContent=wishes.length;
+}
+function openWishes(){ document.getElementById('wish-overlay').classList.add('open'); renderWishList(); document.getElementById('wish-text').focus(); }
+function closeWishes(){ document.getElementById('wish-overlay').classList.remove('open'); inputEl.focus(); }
+function addWish(){
+  const ta=document.getElementById('wish-text');
+  const text=ta.value.trim();
+  if(!text){ ta.focus(); return; }
+  wishes.push({
+    id:Date.now(),
+    date:new Date().toISOString(),
+    task:(currentIdx+1)+'. '+TASKS[currentIdx].title,
+    text:text,
+  });
+  ta.value='';
+  saveWishes(); renderWishList(); ta.focus();
+}
+function delWish(id){ wishes=wishes.filter(w=>w.id!==id); saveWishes(); renderWishList(); }
+function renderWishList(){
+  const el=document.getElementById('wish-list');
+  if(!wishes.length){ el.innerHTML='<div class="wish-empty">Пока пусто. Напиши первое пожелание 👆</div>'; return; }
+  el.innerHTML=wishes.map(w=>
+    '<div class="wish-item"><div class="w-body">'+esc(w.text)+
+    '<div class="w-meta">'+new Date(w.date).toLocaleString('ru-RU')+' · во время задания «'+esc(w.task)+'»</div></div>'+
+    '<button onclick="delWish('+w.id+')" title="Удалить">🗑</button></div>'
+  ).join('');
+}
+function exportWishes(){
+  const payload={
+    app:'Linux-Тренажёр',
+    version:APP_VERSION,
+    exported_at:new Date().toISOString(),
+    progress:{done:doneSet.size,total:TASKS.length,done_tasks:[...doneSet].sort((a,b)=>a-b).map(i=>(i+1)+'. '+TASKS[i].title)},
+    wishes:wishes.map(({id,...w})=>w),
+  };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='пожелания-тренажёр-'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(a.href);
+}
+document.getElementById('wish-text').addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&e.ctrlKey){ e.preventDefault(); addWish(); }
+  if(e.key==='Escape'){ closeWishes(); }
+});
+renderWishCount();
+
+/* ================================================================
+   ПЕЧАТЬ ПРОТОКОЛА (под роспись)
+   ================================================================ */
+function printProtocol(){
+  const name=prompt('Фамилия и имя обучающегося (для протокола):','')||'________________________';
+  const rows=TASKS.map((t,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc(LEVELS[t.lvl].replace(/^\S+\s/,''))+'</td><td>'+esc(t.title)+'</td><td style="text-align:center">'+(doneSet.has(i)?'✔ выполнено':'—')+'</td></tr>').join('');
+  document.getElementById('print-area').innerHTML=
+    '<h1>Протокол прохождения тренажёра «Терминал Linux (Astra Linux 1.8)»</h1>'+
+    '<div class="meta">Обучающийся: <b>'+esc(name)+'</b><br>Дата: '+new Date().toLocaleDateString('ru-RU')+
+    '<br>Результат: <b>'+doneSet.size+' из '+TASKS.length+'</b> заданий выполнено</div>'+
+    '<table><tr><th>№</th><th>Уровень</th><th>Задание</th><th>Отметка</th></tr>'+rows+'</table>'+
+    '<div class="sign">Подпись обучающегося: _______________________<br><br>Подпись проверяющего: _______________________</div>';
+  window.print();
+}
+
+/* ================================================================
+   СТАРТ
+   ================================================================ */
+printLine('<span class="c-ok">Astra Linux 1.8 (voronezh) — учебный терминал fly-term</span>');
+printLine('<span class="c-dim">Добро пожаловать, student! Справа — твоё задание.</span>');
+printLine('<span class="c-dim">Набери <b>help</b> — покажу все команды. <b>Tab</b> дописывает слова, как в настоящем терминале.</span>');
+printLine('&nbsp;');
+refreshPrompt();
+renderTask();
+inputEl.focus();
+</script>
+</body>
+</html>
